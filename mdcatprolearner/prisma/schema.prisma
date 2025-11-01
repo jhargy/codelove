@@ -1,0 +1,186 @@
+// schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  mobileNumber String    @map("mobile_number")
+  pinCode      String    @map("pin_code")
+  password     String
+  role         String    @default("user")
+  isActive     Boolean   @default(true) @map("is_active")
+  isBlocked    Boolean   @default(false) @map("is_blocked")
+  isPro        Boolean   @default(false) @map("is_pro")
+  secretCode   String    @default("") @map("secret_code")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @map("updated_at")
+  
+  // Relations
+  proUser      ProUser?
+  payments     Payment[]
+  comments     Comment[]
+  testResults  TestResult[]
+  testAttempts MockTestAttempt[]
+  
+  @@map("users")
+}
+
+model ProUser {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique @map("user_id")
+  name        String
+  paymentType String?  @map("payment_type")
+  paidAt      DateTime @default(now()) @map("paid_at")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @map("updated_at")
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("pro_users")
+}
+
+model Payment {
+  id             Int      @id @default(autoincrement())
+  userId         Int      @map("user_id")
+  amount         Int      @default(2000)
+  paymentType    String   @map("payment_type")
+  accountNumber  String   @map("account_number")
+  transactionId  String?  @map("transaction_id")
+  status         String   @default("pending") // pending, completed, failed, cancelled
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @map("updated_at")
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("payments")
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  userName  String   @map("user_name")
+  userEmail String   @map("user_email")
+  content   String
+  topicSlug String   @map("topic_slug") // Add this field to associate with topics
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("comments")
+}
+model NewsletterSubscriber {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+  
+  @@map("newsletter_subscribers")
+}
+
+model TestResult {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  subject   String
+  score     Int
+  total     Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("test_results")
+}
+
+model MockTest {
+  id             Int       @id @default(autoincrement())
+  title          String
+  description    String?
+  type           String    @default("subject") // subject, full_syllabus
+  subject        String?   // Only for subject-wise tests
+  duration       Int       @default(180) // in minutes
+  totalMarks     Int       @default(200)
+  totalQuestions Int       @default(200)
+  isActive       Boolean   @default(true) @map("is_active")
+  isPro          Boolean   @default(false) @map("is_pro")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @default(now()) @map("updated_at")
+  
+  // Relations
+  questions      Question[]
+  testAttempts   MockTestAttempt[]
+  
+  @@map("mock_tests")
+}
+
+model Question {
+  id            Int      @id @default(autoincrement())
+  mockTestId    Int      @map("mock_test_id")
+  questionText  String   @map("question_text")
+  options       Json     // { A: "...", B: "...", C: "...", D: "..." }
+  correctAnswer String   @map("correct_answer") // A, B, C, D
+  marks         Int      @default(1)
+  explanation   String?
+  subject       String?
+  difficulty    String   @default("medium") // easy, medium, hard
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @map("updated_at")
+  
+  // Relations
+  mockTest      MockTest @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+  answers       Answer[]
+  
+  @@map("questions")
+}
+
+model MockTestAttempt {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @map("user_id")
+  mockTestId  Int       @map("mock_test_id")
+  score       Int       @default(0)
+  totalMarks  Int       @default(200)
+  percentage  Float     @default(0.0)
+  timeSpent   Int       @default(0) // in seconds
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @default(now()) @map("updated_at")
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mockTest    MockTest  @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+  answers     Answer[]
+  
+  @@map("mock_test_attempts")
+}
+
+model Answer {
+  id             Int      @id @default(autoincrement())
+  attemptId      Int      @map("attempt_id")
+  questionId     Int      @map("question_id")
+  selectedOption String?  @map("selected_option") // A, B, C, D or null if skipped
+  isCorrect      Boolean? @map("is_correct")
+  timeSpent      Int      @default(0) // in seconds
+  createdAt      DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  attempt        MockTestAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question       Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  @@map("answers")
+}
